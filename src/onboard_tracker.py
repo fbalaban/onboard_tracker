@@ -86,7 +86,7 @@ def position_callback(data):
             if waypoint_iter == len(wp_plan):
                 # introduce angle if needed from previous file
                 rospy.loginfo("[Tracker] For distance of: %s km the integrated area is: %s sq.kilometers ", str(tracker.const.DISTANCE), str(integrated_area))
-                state = "MANUAL"
+                state = "RTL"
                 has_wp_plan = False
 
         # CONSTRUCTING THE WP. TODO exchanging only the lat,long
@@ -110,6 +110,8 @@ def position_callback(data):
 
         # SENDING THE LIST
         rospy.loginfo("[Tracker] Intermediate waypoint, latitude: %s, longitude: %s ", str(c_wp.latitude), str(c_wp.longitude))
+        # TODO maybe add the "the_req.start_index = 1" instead of the full wp list (with home) which will replace only the 1st wp instead of the whole
+        # list http://docs.ros.org/api/mavros_msgs/html/srv/WaypointPush.html. This would probably mean that the current service wouldn't be needed
         command_service(the_req)
         current_service(1)
 
@@ -119,44 +121,65 @@ def update_mission_callback(data):
     global has_wp_plan
     global the_home
     global wp_plan    
+    global mission_started
     
     if mission_started == False:
         mavros_wp_list = data.waypoints
         wp_plan = []
         count = 0
         
-        if len(mavros_wp_list) > 1:
+        if len(mavros_wp_list) > 2:
             for each_wp in mavros_wp_list:
                 wp_plan.append(tracker.calc.waypoint(latitude=each_wp.x_lat, longitude=each_wp.y_long))
-
             rospy.loginfo("[Tracker] New WP Plan received :")
             for norm_wp in wp_plan:
                 rospy.loginfo("[Tracker] %s: Latitude: %s, Longitude: %s", str(count), str(norm_wp.latitude), str(norm_wp.longitude))
                 count = count + 1
             rospy.loginfo("[Tracker] Total waypoints: %s", str(count))
-            has_wp_plan = True
-
-            #The semi-constant we were talking about..
-            the_home.x_lat = wp_plan[0].latitude
-            the_home.y_long = wp_plan[0].longitude
+            if len(data.waypoints) == len(wp_plan):
+                rospy.loginfo("[Tracker] Got the WP plan")
+                has_wp_plan = True
+                #The semi-constant we were talking about..
+                the_home.x_lat = wp_plan[0].latitude
+                the_home.y_long = wp_plan[0].longitude
 
 def state_callback(data):
 
     global initial_run
     global state
     global has_wp_plan
+    global mission_started
+    global waypoint_iter
 
-    if initial_run == True:
-        has_wp_plan = False
-        if data.mode == "AUTO" or data.mode == "AUTO.MISSION":
-            waypoint_pull_service()
+    
+    if data.mode == "AUTO" or data.mode == "AUTO.MISSION":
+        waypoint_pull_service()
+        if initial_run == True:
+            has_wp_plan = False
             initial_run = False
-            state = "AUTO"
-            rospy.loginfo("[Tracker] Changed to AUTO")
-    if data.mode == "STABILIZED":
-        rospy.signal_shutdown("[Tracker] RTLing, gathering ROS bags")
-
-
+        state = "AUTO"
+        rospy.loginfo("[Tracker] Changed to AUTO")
+    if data.mode == "STABILIZED" or data.mode == "STABILIZE":
+        state = "STABILIZED"
+        waypoint_iter = 1
+        mission_started = False
+        initial_run = True
+        has_wp_plan = False
+        clearing_service()
+        rospy.loginfo("[Tracker] Changed to STABILIZED")
+    if data.mode == "AUTO.RTL" or data.mode == "RTL":
+        state = "RTL"
+        waypoint_iter = 1
+        mission_started = False
+        initial_run = True
+        has_wp_plan = False
+        clearing_service()
+        rospy.loginfo("[Tracker] Changed to RTL - clearing mission")
+    if data.mode == "MANUAL":
+        state = "MANUAL"
+        rospy.loginfo("[Tracker] Changed to MANUAL")
+        rospy.signal_shutdown("[Tracker] Manual mode, gathering ROS bags and shutting down")
+        
 if __name__ == '__main__':
 
     # Sleeping waiting for mavros to start
@@ -167,7 +190,7 @@ if __name__ == '__main__':
     global has_wp_plan
 
     initial_run = True
-    state = "MANUAL"
+    state = "STABILIZED"
     has_wp_plan = False
 
     rospy.init_node('onboard_tracker', anonymous=False)

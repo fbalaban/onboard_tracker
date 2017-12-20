@@ -1,0 +1,17 @@
+<launch>
+	<!-- Launching the mavros node which reads telemtry data from serial connection with the autopilot -->
+	<include file="$(find mavros)/launch/apm_usb.launch" />
+
+	<!-- Launching the onboard tracker rospy node. Required -->
+	<node pkg="onboard_tracker" name="onboard_tracker" type="onboard_tracker.py" output="screen" required="true"/>
+
+	<!-- Launching rosbag loggers for the mavros telemetry data -->
+	<node pkg="rosbag" type="record" name="rosbag_record_telem" 
+		  args="record -o /home/odroid/Experiments/Data/mavrosTelemetry/telem /mavros/battery /mavros/global_position/global 
+				/mavros/global_position/local /mavros/global_position/rel_alt /mavros/local_position/odom /mavros/local_position/pose 
+				/mavros/mission/reached /mavros/state /mavros/wind_estimation /mavros/time_reference" />
+	
+	<!-- Logging the diagnostics and rosout -->
+	<node pkg="rosbag" type="record" name="rosbag_record_diag" 
+		  args="record -o /home/odroid/Experiments/Data/diag/diag /diagnostics /rosout" />
+</launch>

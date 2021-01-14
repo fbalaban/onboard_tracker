@@ -7,5 +7,17 @@ Given a specific waypoint plan, the node sends a single waypoint to emulate a "g
 This is the node used for the results of the paper presented in RED-UAS conference: https://ieeexplore.ieee.org/abstract/document/8101643/
 
 ----
+# Installation
 
-ROS Python (rospy) package mavros is required for exchanging messages with the ROS publishers and subscribers. 
+ROS Python (rospy) package mavros and mavros_msgs are required for exchanging messages with the ROS publishers and subscribers. 
+Rospy is not available through pip. You can either "sudo apt-get install -y python-rospy" or
+
+```virtualenv -p python3 venv```
+
+```. ./venv/bin/activate```
+
+```pip install --extra-index-url https://rospypi.github.io/simple/ rospy```
+
+from https://github.com/rospypi/simple.
+
+This installs only the headers for rospy. You still need ROS and mavros to operate.

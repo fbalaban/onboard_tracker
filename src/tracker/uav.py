@@ -1,24 +1,19 @@
 #!/usr/bin/env python
+
+# External imports
 import rospy
-
 from sensor_msgs.msg import NavSatFix
+from mavros_msgs.msg import WaypointList, WaypointClear, WaypointPull, WaypointPush, WaypointPushRequest, State, Waypoint
 
-from mavros_msgs.msg import WaypointList
-from mavros_msgs.srv import WaypointClear
-from mavros_msgs.srv import WaypointPull
-from mavros_msgs.srv import WaypointPush
-from mavros_msgs.srv import WaypointPushRequest
-from mavros_msgs.msg import State
-from mavros_msgs.msg import Waypoint
-
+# Internal imports
 import calc
-import const
 from calc import waypoint as calculation_waypoint
+from src.tracker import ALTITUDE, DISTANCE
 
 
 def construct_waypoint(c_wp):
     """
-    Construct a mavros Waypoint structure
+    Construct and return a proper mavros Waypoint structure
     """
     the_wp = Waypoint()
     the_wp.frame = 3
@@ -29,15 +24,9 @@ def construct_waypoint(c_wp):
     the_wp.param2 = 10
     the_wp.param3 = 0
     the_wp.param4 = 0
-    # the_wp.x_lat = 37.5200634
-    # the_wp.y_long = -5.8591536
-    # the_req.waypoints.insert(1,the_wp)
-    # 37.5200634
-    # -5.8591536
     the_wp.x_lat = c_wp.latitude
     the_wp.y_long = c_wp.longitude
-    the_wp.z_alt = const.ALTITUDE
-    # the_wp.z_alt = 41.6
+    the_wp.z_alt = ALTITUDE
     return the_wp
 
 
@@ -72,9 +61,8 @@ class UAV:
 
     def state_callback(self, data):
         """
-        When UAV state changes
+        ROS Service Callback which is called when UAV state changes. Resets class and mission variables
         """
-
         if data.mode == "AUTO" or data.mode == "AUTO.MISSION":
             if self.initial_run:
                 self.state = "AUTO"
@@ -106,9 +94,8 @@ class UAV:
 
     def update_mission_callback(self, data):
         """
-        In each mission update
+        ROS Service Callback which is called in every mission update (receiving new global waypoint plan)
         """
-
         if not self.mission_started:
             self.wp_plan.clear()
             count = 0
@@ -129,7 +116,8 @@ class UAV:
 
     def position_callback(self, data):
         """
-        Where reaching each position
+        ROS Service Callback which is called whenever the UAV reaches the next waypoint. Responsible for calculating
+        the global space integration metric
         """
         if self.state == "AUTO" and self.has_wp_plan == True:
             self.mission_started = True
@@ -140,7 +128,6 @@ class UAV:
             closest_point = calc.get_closest_point_on_segment(previous_wp.latitude, previous_wp.longitude,
                                                               next_wp.latitude, next_wp.longitude,
                                                               data.latitude, data.longitude)
-
             if self.waypoint_iter > 0:
                 if not self.integration:
                     rospy.loginfo("========= INTEGRATION STARTED =========")
@@ -161,34 +148,29 @@ class UAV:
 
             bearing = calc.find_bearing(previous_wp, next_wp)
 
-            # the next is the second way of calculating the next waypoint, by including the distance from the actual
-            # position of the UAV:
-            # remaining_distance = tracker.const.DISTANCE -
-            #                          get_distance(data.latitude, data.longitude,
-            #                                       closest_point.latitude, closest_point.longitude)
+            # This section is commented out indicating another tested way for this path planning approach:
+            # For calculating the next waypoint by including the distance from the actual position of the UAV:
+            #
+            # remaining_distance = DISTANCE - get_distance(data.latitude, data.longitude, closest_point.latitude,
+            #                                              closest_point.longitude)
             # c_wp = find_command_waypoint(remaining_distance, bearing, closest_point)
 
-            c_wp = calc.find_command_waypoint(const.DISTANCE, bearing, closest_point)
+            c_wp = calc.find_command_waypoint(DISTANCE, bearing, closest_point)
 
             if calc.get_distance(data.latitude, data.longitude, next_wp.latitude, next_wp.longitude) < 0.03:  # meters
                 self.waypoint_iter += 1
                 rospy.loginfo("[Tracker] Waypoint id: %s", str(self.waypoint_iter))
                 if self.waypoint_iter == (len(self.wp_plan) - 1):
                     rospy.loginfo("[Tracker] For distance of: %s km the integrated area is: %s sq.kilometers ",
-                                  str(const.DISTANCE), str(integrated_area))
+                                  str(DISTANCE), str(integrated_area))
                     self.state = "RTL"
                     self.has_wp_plan = False
 
             the_req = WaypointPushRequest()
-            # the_req.waypoints.insert(0,the_home)
-            # the_req.waypoints.insert(1,the_wp)
             the_req.waypoints.insert(0, construct_waypoint(c_wp))
 
             rospy.loginfo("[Tracker] Intermediate waypoint, latitude: %s, longitude: %s ", str(c_wp.latitude),
                           str(c_wp.longitude))
-
-            # Second method: add the "the_req.start_index = 1" instead of full wp list (with home)
-            # which will replace only the 1st wp instead of the whole plan
 
             # http://docs.ros.org/api/mavros_msgs/html/srv/WaypointPush.html.
             # An indication that the current service might not be needed
@@ -201,4 +183,4 @@ class UAV:
 
         rospy.Subscriber("mavros/state", State, self.state_callback)
         rospy.Subscriber("mavros/mission/waypoints", WaypointList, self.update_mission_callback)
-        rospy.Subscriber("mavros/global_position/global", NavSatFix, position_callback)
+        rospy.Subscriber("mavros/global_position/global", NavSatFix, self.position_callback)

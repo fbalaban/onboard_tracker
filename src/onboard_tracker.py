@@ -11,6 +11,7 @@ if __name__ == '__main__':
     rospy.init_node('onboard_tracker', anonymous=False)
     rospy.loginfo("[Tracker] Just started")
 
-    tracker.uav.subscribe()
+    fixed_wing = tracker.uav.UAV
+    fixed_wing.subscribe()
 
     rospy.spin()

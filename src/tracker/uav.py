@@ -130,7 +130,7 @@ class UAV:
                                                               data.latitude, data.longitude)
             if self.waypoint_iter > 0:
                 if not self.integration:
-                    rospy.loginfo("========= INTEGRATION STARTED =========")
+                    rospy.loginfo("========= INTEGRATION STARTED ==========")
                     self.integration = True
                     self.vasi_mikri = calc.get_distance(data.latitude, data.longitude, closest_point.latitude,
                                                         closest_point.longitude)

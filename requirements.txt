@@ -1,1 +1,4 @@
 numpy
+rospy
+mavros_msgs
+sensor_msgs

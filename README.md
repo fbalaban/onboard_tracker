@@ -29,5 +29,5 @@ During a waypoint list flight in AUTO mode, the script sends new waypoint plans 
 Just execute onboard_tracker node in order to activate.
 
 # License
-GPLv3.
+GPLv3
 

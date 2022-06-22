@@ -1,4 +1,4 @@
-numpy==1.19.5
+numpy==1.22.0
 rospy==1.15.7
 mavros_msgs
 sensor_msgs
